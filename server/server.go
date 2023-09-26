@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -32,6 +34,7 @@ var db *sql.DB
 
 type Quotation struct {
 	Usdbrl struct {
+		ID         string `json:"id"`
 		Code       string `json:"code"`
 		Codein     string `json:"codein"`
 		Name       string `json:"name"`
@@ -45,25 +48,41 @@ type Quotation struct {
 		CreateDate string `json:"create_date"`
 	} `json:"USDBRL"`
 }
+type Output struct {
+	Bid float64 `json:"bid"`
+}
 
 func main() {
-	db = InitializeDatabase()
+	db = initializeDatabase()
+	defer db.Close()
 	http.HandleFunc("/cotacao", GetQuotation)
-	http.ListenAndServe(":8000", nil)
+	http.ListenAndServe(":8080", nil)
 }
 
 func GetQuotation(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
-	res, err := Request(ctx)
+	res, err := quotationRequest(ctx)
 	if err != nil {
 		println("Erro ao buscar a cotação")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	q, err := saveQuotation(r, res)
+	if err != nil {
+		println("Erro ao tentar salvar a cotação")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out, err := mapperOutput(q)
+	if err != nil {
+		println("Erro ao tentar mapear o bid para output")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(res)
+	err = json.NewEncoder(w).Encode(out)
 	if err != nil {
 		println("Erro ao encodar a resposta")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -71,7 +90,7 @@ func GetQuotation(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Request(ctx context.Context) (*Quotation, error) {
+func quotationRequest(ctx context.Context) (*Quotation, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", urlQuotation, nil)
 	if err != nil {
 		panic(err)
@@ -95,17 +114,54 @@ func Request(ctx context.Context) (*Quotation, error) {
 	return &q, nil
 }
 
-func InitializeDatabase() *sql.DB {
+func initializeDatabase() *sql.DB {
 	db, err := sql.Open("sqlite3", "quotation.db")
 	if err != nil {
 		println("Erro ao conectar no banco de dados")
 		panic(err)
 	}
-	defer db.Close()
 	_, err = db.Exec(initScriptDatabase)
 	if err != nil {
 		println("Erro ao executar script inicial do banco de dados")
 		panic(err)
 	}
 	return db
+}
+
+func saveQuotation(r *http.Request, q *Quotation) (*Quotation, error) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Millisecond)
+	defer cancel()
+	stmt, err := db.Prepare("insert into quotation(id, code, codein, name, high, low, varBid, pctChange, bid, ask, timestamp, create_date) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		println("Erro ao tentar sanitizar os dados via stmt")
+		return nil, err
+	}
+	q.Usdbrl.ID = uuid.New().String()
+	_, err = stmt.ExecContext(ctx,
+		q.Usdbrl.ID,
+		q.Usdbrl.Code,
+		q.Usdbrl.Codein,
+		q.Usdbrl.Name,
+		q.Usdbrl.High,
+		q.Usdbrl.Low,
+		q.Usdbrl.VarBid,
+		q.Usdbrl.PctChange,
+		q.Usdbrl.Bid,
+		q.Usdbrl.Ask,
+		q.Usdbrl.Timestamp,
+		q.Usdbrl.CreateDate)
+	if err != nil {
+		println("Erro ao tentar executar insert do quotation")
+		return nil, err
+	}
+	return q, nil
+}
+
+func mapperOutput(q *Quotation) (*Output, error) {
+	bid, err := strconv.ParseFloat(q.Usdbrl.Bid, 64)
+	if err != nil {
+		return nil, err
+	}
+	out := Output{Bid: bid}
+	return &out, nil
 }
