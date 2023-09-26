@@ -68,7 +68,7 @@ func GetQuotation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	q, err := saveQuotation(r, res)
+	q, err := saveQuotation(r.Context(), res)
 	if err != nil {
 		println("Erro ao tentar salvar a cotação")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -128,8 +128,8 @@ func initializeDatabase() *sql.DB {
 	return db
 }
 
-func saveQuotation(r *http.Request, q *Quotation) (*Quotation, error) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Millisecond)
+func saveQuotation(ctx context.Context, q *Quotation) (*Quotation, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
 	defer cancel()
 	stmt, err := db.Prepare("insert into quotation(id, code, codein, name, high, low, varBid, pctChange, bid, ask, timestamp, create_date) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
