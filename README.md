@@ -27,3 +27,18 @@ O client.go terá que salvar a cotação atual em um arquivo "cotacao.txt" no fo
 O endpoint necessário gerado pelo server.go para este desafio será: /cotacao e a porta a ser utilizada pelo servidor HTTP será a 8080.
  
 Ao finalizar, envie o link do repositório para correção.
+
+# Como executar
+Após clonar o projeto, execute o seguinte comando na raiz:
+```sh
+    go mod tidy
+```
+
+Depois suba o server com o seguinte comando:
+```sh
+    cd server && go run server.go
+```
+Agora é só executar o client: 
+```sh
+    cd client && go run client.go
+```
