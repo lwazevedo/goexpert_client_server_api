@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS quotation (
 	timestamp varchar(255),
 	create_date varchar(255));
 `
+const path = "/cotacao"
 
 var db *sql.DB
 
@@ -55,11 +56,16 @@ type Output struct {
 func main() {
 	db = initializeDatabase()
 	defer db.Close()
-	http.HandleFunc("/cotacao", GetQuotation)
+	http.HandleFunc(path, GetQuotation)
 	http.ListenAndServe(":8080", nil)
 }
 
 func GetQuotation(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != path {
+		println("Url não existe")
+		http.Error(w, "Url não existe", http.StatusNotFound)
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	res, err := quotationRequest(ctx)
