@@ -2,13 +2,33 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const urlQuotation = "https://economia.awesomeapi.com.br/json/last/USD-BRL"
+const initScriptDatabase = `
+CREATE TABLE IF NOT EXISTS quotation (
+	id varchar(255) NOT NULL PRIMARY KEY,
+	code varchar(255),
+	codein varchar(255),
+	name varchar(255),
+	high varchar(255),
+	low varchar(255),
+	varBid varchar(255),
+	pctChange varchar(255),
+	bid varchar(255),
+	ask varchar(255),
+	timestamp varchar(255),
+	create_date varchar(255));
+`
+
+var db *sql.DB
 
 type Quotation struct {
 	Usdbrl struct {
@@ -27,6 +47,7 @@ type Quotation struct {
 }
 
 func main() {
+	db = InitializeDatabase()
 	http.HandleFunc("/cotacao", GetQuotation)
 	http.ListenAndServe(":8000", nil)
 }
@@ -72,4 +93,19 @@ func Request(ctx context.Context) (*Quotation, error) {
 		return nil, err
 	}
 	return &q, nil
+}
+
+func InitializeDatabase() *sql.DB {
+	db, err := sql.Open("sqlite3", "quotation.db")
+	if err != nil {
+		println("Erro ao conectar no banco de dados")
+		panic(err)
+	}
+	defer db.Close()
+	_, err = db.Exec(initScriptDatabase)
+	if err != nil {
+		println("Erro ao executar script inicial do banco de dados")
+		panic(err)
+	}
+	return db
 }
