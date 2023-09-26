@@ -40,12 +40,6 @@ func GetQuotation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// q, err := TransformResponseInQuotation(res)
-	// if err != nil {
-	// 	println("Erro ao serializar a cotação")
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(w).Encode(res)
